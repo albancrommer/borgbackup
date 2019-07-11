@@ -22,3 +22,9 @@
   when: >
     inventory_hostname in borgbackup_management_group and
     inventory_hostname not in borgbackup_servers_group
+
+- include_tasks: management-keys.yml
+  when: >
+    inventory_hostname not in borgbackup_management_group and
+    inventory_hostname not in borgbackup_servers_group and
+    borgbackup_management_copy_keys

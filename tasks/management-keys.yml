@@ -1,0 +1,23 @@
+---
+
+- name: management | get key file
+  fetch: 
+       src: "~{{ borgbackup_client_user}}/.config/borg/keys/{{ borgbackup_management_key_name }}{{ inventory_hostname }}" 
+       dest: /tmp/.borgbackup_key_{{ inventory_hostname }}
+       flat: yes
+  changed_when: false
+
+- name: management | upload key to management
+  raw: scp /tmp/.borgbackup_key_{{ inventory_hostname }} {{ borgbackup_management_user }}@{{ borgbackup_management_station }}:~/.config/borg/keys/{{ borgbackup_management_key_name }}{{ inventory_hostname }}
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+- name: management | clean local copy 
+  raw: rm -f /tmp/.borgbackup_key_{{ inventory_hostname }}
+  delegate_to: localhost
+  become: false
+  changed_when: false
+
+
+ 

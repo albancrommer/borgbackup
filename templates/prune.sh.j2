@@ -1,27 +1,35 @@
 #jinja2:lstrip_blocks: True
 #!/bin/bash
+usage(){
+cat << EOL
 
-# This script is intended to run on a trusted management station to purge borg repo's in
-# append-only mode.
-# Don't put it on the backup server, it contains all borg secrets!
+  This script is intended to run on a trusted management station to purge borg repo's in
+  append-only mode.
+  Don't put it on the backup server, it contains all borg secrets!
+
+EOL
+}
+
+DATE=$(date +%y%m%d)
+LOG_DIR=/var/log/borgbackup
+[ ! -d $LOG_DIR ] && mkdir $LOG_DIR
+LOG_FILE=/var/log/borgbackup-prune/${DATE}.log
+exec &> >(tee "$LOG_FILE")
 
 {% for h in groups['all'] %}
-  {% if hostvars[h].borgbackup_required | default(True) -%}
-  # Host: {{ h }}
+  {% if h != borgbackup_management_station and h not in groups['borgbackup_servers'] -%} 
+echo "Host: {{ h }}"
+export BORG_PASSPHRASE={{ hostvars[h].borgbackup_passphrase }}
+    {% if borgbackup_management_station is defined and inventory_hostname == borgbackup_management_station %}
+      {% for b in borgbackup_servers %}
+        {% if b.type == 'hetzner' %}
+REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ h }}
+        {% else %}
+REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ h }}
+        {% endif %}
+/usr/local/bin/borg prune -v $REPOSITORY {{ b.options }} -H {{ borgbackup_retention.hourly }} -d {{ borgbackup_retention.daily }} -w {{ borgbackup_retention.weekly }} -m {{ borgbackup_retention.monthly }} -y {{ borgbackup_retention.yearly }}
 
-    export BORG_PASSPHRASE={{ hostvars[h].borgbackup_passphrase }}
-
-    {% if hostvars[h].borgbackup_management_station is defined and inventory_hostname == hostvars[h].borgbackup_management_station %}
-    {% for b in hostvars[h].borgbackup_servers %}
-    # {{ b.fqdn }}
-{% if b.type == 'hetzner' %}
-      REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ h }}
-{% else %}
-      REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ h }}
-{% endif %}
-      /usr/local/bin/borg prune -v $REPOSITORY {{ b.options }} -H {{ hostvars[h].borgbackup_retention.hourly }} -d {{ hostvars[h].borgbackup_retention.daily }} -w {{ hostvars[h].borgbackup_retention.weekly }} -m {{ hostvars[h].borgbackup_retention.monthly }} -y {{ hostvars[h].borgbackup_retention.yearly }}
-
-  {% endfor %}
-  {% endif %}
+      {% endfor %}
+    {% endif %}
   {% endif %}
 {% endfor %}

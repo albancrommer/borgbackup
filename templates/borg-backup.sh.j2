@@ -73,33 +73,58 @@ if [ "$1" = "backup" ]
   then
     date=`date +%Y%m%d-%H%M`
 
-    # Running some commands pre-backup
+    LOG_DEST="/var/log/borgbackup/${date}"
+    LOG_FILE="${LOG_DEST}.log"
+    log(){ echo -e "\n$(date '+%Y-%m-%d %H:%M:%S') $@" | tee -a "$LOG_FILE"; }
+    _term(){ echo -e "\n## END ##" | tee -a "$LOG_FILE"; exit 1; }
+    trap _term SIGINT SIGTERM
+
+# Running some commands pre-backup
+(
 {% for precommand in borgbackup_pre_commands %}
-    {{ precommand }}
+{{ precommand }}
 {% endfor %}
+) &>> "$LOG_FILE"
+
+{% if borgbackup_remote_ratelimit %}
+    	{% set rate_limit %} --remote-ratelimit={{borgbackup_remote_ratelimit}} {% endset %}
+{% else %}
+    	{% set rate_limit = " " %}
+{% endif %}
 
 {% for b in borgbackup_servers %}
-    printf "Backing up to {{ b.fqdn }} :\n"
 {% if b.type == 'hetzner' %}
     REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% else %}
     REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% endif %}
     
-    /usr/local/bin/borg create -x --progress --compression {{ borgbackup_compression }} --stats {{ b.options }} $REPOSITORY::$date {% for dir in borgbackup_include %}{{ dir }} {% endfor %}{% if automysql.stat.isdir is defined and automysql.stat.isdir == True %}/var/lib/automysqlbackup{% endif %} {% for dir in borgbackup_exclude %} --exclude '{{ dir }}'{% endfor %}
+    log "## Backing up to {{ b.fqdn }} "
+    /usr/local/bin/borg create {{ rate_limit }} -x --compression {{ borgbackup_compression }} --stats {{ b.options }} $REPOSITORY::$date {% for dir in borgbackup_include %}{{ dir }} {% endfor %} {% for dir in borgbackup_exclude %} --exclude '{{ dir }}'{% endfor %} &>> $LOG_FILE
 
     if [ "$?" -eq "0" ]; then printf "Backup succeeded on $date to {{ b.fqdn }}\n" >> /var/log/borg-backup.log; fi
 
+    log "## Checking the archive integrity "
+    /usr/local/bin/borg check $REPOSITORY::$date -v &>> "$LOG_FILE"
+
+    log "## Retrieving archive json file"
+    /usr/local/bin/borg info $REPOSITORY::$date --json > "${LOG_DEST}.json"
+
   {% if not borgbackup_appendonly %}
-    # prune old backups
-    /usr/local/bin/borg prune {{ b.options }} -v $REPOSITORY -H {{ borgbackup_retention.hourly }} -d {{ borgbackup_retention.daily }} -w {{ borgbackup_retention.weekly }} -m {{ borgbackup_retention.monthly }} -y {{ borgbackup_retention.yearly }}
+    log "## Pruning the repository"
+    /usr/local/bin/borg prune {{ b.options }} -v $REPOSITORY -H {{ borgbackup_retention.hourly }} -d {{ borgbackup_retention.daily }} -w {{ borgbackup_retention.weekly }} -m {{ borgbackup_retention.monthly }} -y {{ borgbackup_retention.yearly }} &>> "$LOG_FILE"
   {% endif %}
 {% endfor %}
 
     # Running some commands post-backup
-{% for postcommand in borgbackup_post_commands %}
+{% if borgbackup_post_commands |length > 1  %} 
+    (
+    {% for postcommand in borgbackup_post_commands %}
     {{ postcommand }}
-{% endfor %}
+    {% endfor %}
+    ) &>> "$LOG_FILE"
+{% endif %}
 
+    _term
 fi
 

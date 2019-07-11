@@ -4,26 +4,40 @@ borgbackup_required: true
 borgbackup_client_user: root
 borgbackup_ssh_key: "~{{ borgbackup_client_user }}/.ssh/id_borg_rsa"
 
-borgbackup_version: "1.1.4"
-borgbackup_checksum: "sha256:4ecf507f21f0db7c437b2ef34566273d7ba5a7d05e921c6f0e3406c3f96933a7"
+borgbackup_version: "1.1.10"
+borgbackup_checksum: "sha256:6338d67aad4b5cd327b25ea363e30f0ed4abc425ce2d6a597c75a67a876ef9af"
 borgbackup_download_url: "https://github.com/borgbackup/borg/releases/download/{{ borgbackup_version }}/borg-linux64"
 
 borgbackup_compression: "auto,zlib,6"
 borgbackup_encryption_mode: keyfile
 
 borgbackup_pre_commands:
-  - '[[ ! -f "/usr/sbin/automysqlbackup" ]] || /usr/sbin/automysqlbackup'
+  - "[ -d /etc/backup.d/ ] && run-parts --verbose /etc/backup.d/"
 
 borgbackup_post_commands: []
 
 borgbackup_include:
-  - "/etc"
-  - "/home"
-  - "/root"
-  - "/var/www"
-  - "/var/log"
+  - "/"
 
-borgbackup_exclude: []
+borgbackup_exclude:
+  - "*/local/*"
+  - "*/tmp/*"
+  - "*CACHE*"
+  - "/dev"
+  - "/proc"
+  - "/run"
+  - "/sys"
+  - "/tmp"
+  - "/var/cache/apt"
+  - "/var/lib/amavis/tmp"
+  - "/var/lib/amavis/virusmails"
+  - "/var/lib/lxc"
+  - "/var/lib/lxcfs"
+  - "/var/lib/php/sessions"
+  - "/var/lib/php5"
+  - "/var/run"
+  - "/var/spool/postfix"
+  - "/var/tmp"
 
 borgbackup_retention:
   hourly: 12
@@ -42,6 +56,11 @@ borgbackup_management_station: ''
 borgbackup_management_user: ''
 borgbackup_management_ssh_pubkey: ''
 
+borgbackup_management_copy_keys: true
+borgbackup_management_key_name: 'backupserver_example_com__repo_dir_'
+
+
+borgbackup_remote_ratelimit: 6250 # in KiB/s so 6250 <-> 50Mb/s 
 borgbackup_owner: root
 borgbackup_group: root
 borgbackup_shell: "/bin/bash"

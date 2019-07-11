@@ -33,57 +33,23 @@
         {% endif %}
   with_items: "{{ borgbackup_servers }}"
 
-- name: client | put sshpubkey on the normal backupserver
+- name: client | put non management sshpubkey on the normal backupserver
   authorized_key:
     user: "{{ item.user }}"
     key: "{{ sshkey.stdout }}"
     key_options: 'command="cd {{ item.home }}{{ item.pool }}/{{ inventory_hostname }};borg serve {% if borgbackup_appendonly %}--append-only {% endif %}--restrict-to-path {{ item.home }}/{{ item.pool }}/{{ inventory_hostname }}",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc'
   delegate_to: "{{ item.fqdn }}"
-  when: item.type == 'normal'
+  when: inventory_hostname != borgbackup_management_station
   with_items: "{{ borgbackup_servers }}"
 
-# rsync.net and hetzner have no python, so we can only use raw to manage ssh keys - workaround with local tmp file
-- name: client | get authorized_keys file
-  raw: scp {{ item.user }}@{{ item.fqdn }}:.ssh/authorized_keys /tmp/authkeys-{{ item.type }}-{{ item.fqdn }}-authkeys
-  delegate_to: localhost
-  become: false
-  when: item.type in ['rsync.net','hetzner']
-  with_items: "{{ borgbackup_servers }}"
-  changed_when: false
-
-- name: client | modify local rsync.net/hetzner authorized_keys
+- name: client | put management sshpubkey on backupservers, no appendonly nor path restriction
   authorized_key:
-    user: "{{ ansible_user_id }}"
+    user: "{{ item.user }}"
     key: "{{ sshkey.stdout }}"
-    key_options: 'command="cd {{ item.pool }}/{{ inventory_hostname }};/usr/local/bin/borg1 serve {% if borgbackup_appendonly %}--append-only {% endif %} --restrict-to-path {{ item.pool }}/{{ inventory_hostname }}",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc'
-    path: "/tmp/authkeys-{{ item.type }}-{{ item.fqdn }}-authkeys"
-    manage_dir: false
-  delegate_to: localhost
-  become: false
-  when: item.type in ['rsync.net','hetzner']
+    key_options: 'command="cd {{ item.home }}{{ item.pool }}/{{ inventory_hostname }};borg serve ",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc'
+  delegate_to: "{{ item.fqdn }}"
+  when: inventory_hostname == borgbackup_management_station
   with_items: "{{ borgbackup_servers }}"
-  register: authkeys
-
-- name: client | upload local authorized_keys to rsync.net / hetzner
-  raw: scp /tmp/authkeys-{{ item.type }}-{{ item.fqdn }}-authkeys {{ item.user }}@{{ item.fqdn }}:.ssh/authorized_keys
-  delegate_to: localhost
-  become: false
-  when: item.type in ['rsync.net','hetzner'] and authkeys.changed
-  with_items: "{{ borgbackup_servers }}"
-
-- name: client | remove tmp authorized_keys files
-  file:
-    path: /tmp/authkeys-{{ item.type }}-{{ item.fqdn }}-authkeys
-    state: absent
-  delegate_to: localhost
-  become: false
-  with_items: "{{ borgbackup_servers }}"
-  when: authkeys.changed
-  changed_when: false
-
-- name: client | check for mysql
-  stat: path=/var/lib/automysqlbackup
-  register: automysql
 
 - name: client | put wrapper script
   template:
@@ -109,12 +75,10 @@
     day: "{{ borgbackup_cron_day }}"
     job: "/usr/local/bin/borg-backup backup"
 
-- name: client | disable automysqlbackup cronjob, it's in our pre-backup-tasks
-  lineinfile:
-    dest: "/etc/cron.daily/automysqlbackup"
-    regexp: "^/usr/sbin/automysqlbackup$"
-    line: "#/usr/sbin/automysqlbackup"
-    state: "present"
-    backrefs: true
-    create: false
-  when: automysql.stat.isdir is defined and automysql.stat.isdir == True
+- name: client | create log directory
+  file:
+    path: "/var/log/borgbackup"
+    state: "directory"
+    owner: "root"
+    group: "root"
+    mode: "0755"
