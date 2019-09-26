@@ -1,0 +1,12 @@
+#! /bin/bash
+echo "Host: {{ item }}"
+export BORG_PASSPHRASE={{ hostvars[item].borgbackup_passphrase }}
+{% for b in borgbackup_servers %}
+{% if b.type == 'hetzner' %}
+REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ item }}
+{% else %}
+REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ item }}
+{% endif %}
+/usr/local/bin/borg prune -v $REPOSITORY {{ b.options }} -H {{ borgbackup_retention.hourly }} -d {{ borgbackup_retention.daily }} -w {{ borgbackup_retention.weekly }} -m {{ borgbackup_retention.monthly }} -y {{ borgbackup_retention.yearly }}
+dzadza
+{% endfor %}

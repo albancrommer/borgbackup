@@ -1,4 +1,20 @@
 ---
+- name: management | create scripts dir
+  file:
+    path: "~{{ borgbackup_management_user }}/prune.d"
+    state: "directory"
+    owner: "{{ borgbackup_management_user }}"
+    group: "{{ borgbackup_management_user }}"
+    mode: "0770"
+
+- name: management | create logs dir
+  file:
+    path: "/var/log/borgbackup-prune"
+    state: "directory"
+    owner: "{{ borgbackup_management_user }}"
+    group: "{{ borgbackup_management_user }}"
+    mode: "0770"
+
 - name: management | put management station prune script
   template:
     src: prune.sh.j2
@@ -6,6 +22,19 @@
     owner: "{{ borgbackup_management_user }}"
     group: "{{ borgbackup_management_user }}"
     mode: 0700
+
+- name: management | put each host prune script 
+  template:
+    src: prune.host.sh.j2
+    dest: "~{{ borgbackup_management_user }}/prune.d/{{item}}"
+    owner: "{{ borgbackup_management_user }}"
+    group: "{{ borgbackup_management_user }}"
+    mode: 0770
+  delegate_to: "secure"
+  when:  item != borgbackup_management_station and item not in groups['borgbackup_servers']
+  with_items: "{{ play_hosts }}"
+
+
 
 - name: management | put management sshpubkey on the normal backupserver
   authorized_key:
