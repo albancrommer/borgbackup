@@ -15,8 +15,8 @@ if [ "$1" = "info" ]
   then
     if [ -z "$2" ]; then printf "run $0 with list and use the backup-tag to request information\n"; exit 1; fi
 {% for b in borgbackup_servers %}
-{% if b.type == 'hetzner' %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
+{% if b.port %}
+    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% else %}
     REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% endif %}
@@ -31,8 +31,8 @@ if [ "$1" = "mount" ]
     if [ -z "$3" ]; then printf "Select the backup to mount\n"; exit 1; fi
     if [ -z "$4" ]; then printf "Select the path to mount the backup on\n"; exit 1; fi
 {% for b in borgbackup_servers %}
-{% if b.type == 'hetzner' %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
+{% if b.port %}
+    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% else %}
     REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% endif %}
@@ -45,8 +45,8 @@ fi
 if [ "$1" = "list" ]
   then
 {% for b in borgbackup_servers %}
-{% if b.type == 'hetzner' %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
+{% if b.port %}
+    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% else %}
     REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% endif %}
@@ -59,8 +59,8 @@ fi
 if [ "$1" = "init" ]
   then
 {% for b in borgbackup_servers %}
-{% if b.type == 'hetzner' %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
+{% if b.port %}
+    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% else %}
     REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% endif %}
@@ -93,8 +93,8 @@ if [ "$1" = "backup" ]
 {% endif %}
 
 {% for b in borgbackup_servers %}
-{% if b.type == 'hetzner' %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
+{% if b.port %}
+    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% else %}
     REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
 {% endif %}
