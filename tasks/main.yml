@@ -1,8 +1,9 @@
 ---
-# Due to inverse logic behaviour when searching for an item in an undefined list.
+# Default to empty lists so `inventory_hostname in ...` works when the
+# inventory has no such group.
 - name: setting facts
   set_fact:
-    borgbackup_servers_group: "{{ groups.borgbackup_servers | default([]) }} "
+    borgbackup_servers_group: "{{ groups.borgbackup_servers | default([]) }}"
     borgbackup_management_group: "{{ groups.borgbackup_management | default([]) }}"
 
 # Single source for every repository location: the wrapper script, the

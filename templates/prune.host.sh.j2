@@ -8,5 +8,4 @@ REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:23/./{{ hostvars[item].borgbackup_rep
 REPOSITORY={{ hostvars[item].borgbackup_repositories[b.fqdn].url }}
 {% endif %}
 /usr/local/bin/borg prune -v $REPOSITORY {{ b.options }} -H {{ borgbackup_retention.hourly }} -d {{ borgbackup_retention.daily }} -w {{ borgbackup_retention.weekly }} -m {{ borgbackup_retention.monthly }} -y {{ borgbackup_retention.yearly }}
-dzadza
 {% endfor %}
