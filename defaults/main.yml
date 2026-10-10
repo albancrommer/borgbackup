@@ -64,3 +64,33 @@ borgbackup_remote_ratelimit: 6250 # in KiB/s so 6250 <-> 50Mb/s
 borgbackup_owner: root
 borgbackup_group: root
 borgbackup_shell: "/bin/bash"
+
+# --- Protecting existing deployments ---------------------------------------
+
+# Per-client repository path on each backup server, keyed by server fqdn.
+# Unset (the default) keeps the historical layout:
+#   <home><pool>/<inventory_hostname>
+# Set it in a client's host_vars when its existing repository lives
+# somewhere else, e.g.
+#   borgbackup_repository_paths:
+#     backup.example.org: /rpool/backup/repos/host1.example.org
+borgbackup_repository_paths: {}
+
+# Before writing anything on a client, compare what is already deployed
+# (REPOSITORY in /usr/local/bin/borg-backup, ~/.borg.passphrase, and this
+# client's key line in the backup server's authorized_keys) with what the
+# role is about to write, and fail the host on any difference instead of
+# silently pointing it at a new, empty repository.
+borgbackup_check_existing: true
+
+# Run borg-server.yml (create/modify the server account, its home and the
+# pool directory, install borg on the server). Off by default: on a server
+# that already holds repositories, `user: home=` moves the account's home
+# and with it the authorized_keys every client depends on.
+borgbackup_manage_server: false
+
+# /usr/local/bin/borg is only downloaded when missing. The pinned
+# borgbackup_version would otherwise overwrite (and possibly downgrade)
+# a newer borg already in use. Set to true to force the pinned version.
+borgbackup_force_install: false
+

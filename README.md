@@ -71,6 +71,43 @@ Be aware of the limitations of append-only mode: [pruned backups appear to be re
 
 *Make sure to check the configured defaults for this role, which contains the list of default locations being backed up in backup\_include.* Override this in your inventory where required.
 
+## Existing deployments
+
+Re-running the role on clients that already back up must never point
+them at a different repository. By default, before the role writes
+anything on a client, it compares what is already deployed with what it
+is about to write, and **fails that host** on any difference:
+
+- `REPOSITORY` in `/usr/local/bin/borg-backup` (host, port, path),
+- `~/.borg.passphrase` (a different passphrase would lock the client out
+  of its existing repository; the secret is never logged),
+- this client's key line in the backup server's `authorized_keys`
+  (repository path, `--restrict-to-path`, `--append-only`).
+
+New clients have none of these yet, so they are unaffected. Paths are
+compared with repeated slashes collapsed (`/backup//repos` is
+`/backup/repos`).
+
+When a check fails, make the inventory describe what is deployed:
+
+```yaml
+# host_vars/host1.example.org.yml -- repository not at <home><pool>/<host>
+borgbackup_repository_paths:
+  backup.example.org: /rpool/backup/repos/host1.example.org
+
+# group_vars -- keep append-only if existing key lines have it
+borgbackup_appendonly: true
+```
+
+| Variable | Default | |
+|---|---|---|
+| `borgbackup_repository_paths` | `{}` | Per-host repository path, keyed by server `fqdn`. Used for the wrapper script, the `authorized_keys` line and the management station's prune script. |
+| `borgbackup_check_existing` | `true` | The checks above. |
+| `borgbackup_manage_server` | `false` | Run the server tasks (create/modify the server account and its home, pool directory, borg binary). Off by default: on a server that already holds repositories, `user: home=` moves the account's home, and with it the `authorized_keys` every client relies on. |
+| `borgbackup_force_install` | `false` | `/usr/local/bin/borg` is only downloaded when missing, so a newer borg is never replaced by the pinned `borgbackup_version`. |
+
+`safety-tests/run.sh` exercises all of this in Docker.
+
 ## Usage
 
 Configure Borg on the server and on a client:

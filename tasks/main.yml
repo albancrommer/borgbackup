@@ -5,13 +5,34 @@
     borgbackup_servers_group: "{{ groups.borgbackup_servers | default([]) }} "
     borgbackup_management_group: "{{ groups.borgbackup_management | default([]) }}"
 
+# Single source for every repository location: the wrapper script, the
+# authorized_keys line, the existing-deployment checks and the
+# management station's prune scripts (via hostvars) all read this.
+- name: setting repository locations
+  set_fact:
+    borgbackup_repositories: >-
+      {{ borgbackup_repositories | default({}) | combine({item.fqdn: {
+           'path': _path,
+           'restrict': _restrict,
+           'url': ('ssh://' ~ item.user ~ '@' ~ item.fqdn ~ ':' ~ item.port ~ '/' ~ _path)
+                  if (item.port | default(false))
+                  else (item.user ~ '@' ~ item.fqdn ~ ':' ~ _path)
+         }}) }}
+  vars:
+    _override: "{{ borgbackup_repository_paths[item.fqdn] | default('') }}"
+    _path: "{{ _override or (item.home ~ item.pool ~ '/' ~ inventory_hostname) }}"
+    # Historically the restriction was rendered as <home>/<pool>/<host>
+    # (note the extra slash); kept so existing key lines stay byte-identical.
+    _restrict: "{{ _override or (item.home ~ '/' ~ item.pool ~ '/' ~ inventory_hostname) }}"
+  loop: "{{ borgbackup_servers }}"
+
 - include_tasks: install.yml
   when: >
-    borgbackup_required == True or
-    inventory_hostname in borgbackup_servers_group
+    (borgbackup_required == True and inventory_hostname not in borgbackup_servers_group) or
+    (inventory_hostname in borgbackup_servers_group and borgbackup_manage_server | bool)
 
 - include_tasks: borg-server.yml
-  when: inventory_hostname in borgbackup_servers_group
+  when: inventory_hostname in borgbackup_servers_group and borgbackup_manage_server | bool
 
 - include_tasks: borg-client.yml
   when: >

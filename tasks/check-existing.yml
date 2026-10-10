@@ -1,0 +1,102 @@
+---
+# Read-only checks against what is already deployed for this client.
+# Any difference from what the role is about to write fails the host
+# here, before the passphrase, key line or wrapper script is touched --
+# otherwise the role silently points the client at a new, empty
+# repository (`borg-backup init` creates one) or strips --append-only.
+# Paths are compared with repeated slashes collapsed: /backup//repos and
+# /backup/repos are the same directory.
+
+- name: existing | stat client wrapper script
+  stat:
+    path: /usr/local/bin/borg-backup
+  register: borgbackup_existing_script
+
+- name: existing | read client wrapper script
+  slurp:
+    src: /usr/local/bin/borg-backup
+  register: borgbackup_existing_script_content
+  when: borgbackup_existing_script.stat.exists
+
+- name: existing | wrapper script must keep its repositories
+  assert:
+    that: _existing | difference(_expected) | length == 0
+    fail_msg: >-
+      /usr/local/bin/borg-backup on {{ inventory_hostname }} uses
+      {{ _existing | difference(_expected) | join(', ') }}, but the role
+      would write {{ _expected | join(', ') }}. If the existing repository
+      is right, set borgbackup_repository_paths (and the server's port) for
+      this host so the role keeps it -- see the role README.
+    quiet: true
+  vars:
+    _existing: >-
+      {{ borgbackup_existing_script_content.content | b64decode
+         | regex_findall('REPOSITORY=(\S+)')
+         | map('regex_replace', '(?<!:)/{2,}', '/') | unique | list }}
+    _expected: >-
+      {{ borgbackup_repositories.values() | map(attribute='url')
+         | map('regex_replace', '(?<!:)/{2,}', '/') | unique | list }}
+  when: borgbackup_existing_script.stat.exists
+
+- name: existing | stat passphrase file
+  stat:
+    path: "~{{ borgbackup_client_user }}/.borg.passphrase"
+  register: borgbackup_existing_passphrase
+
+# lineinfile in check mode reports "changed" when the exact line is
+# missing: with an existing file, that means a different passphrase,
+# which the write below would append -- and the last export wins, so the
+# existing keyfile could no longer be opened.
+- name: existing | compare passphrase
+  lineinfile:
+    dest: "~{{ borgbackup_client_user }}/.borg.passphrase"
+    state: "present"
+    line: 'export BORG_PASSPHRASE="{{ borgbackup_passphrase }}"'
+  check_mode: true
+  register: borgbackup_passphrase_check
+  no_log: true
+  when: borgbackup_existing_passphrase.stat.exists
+
+- name: existing | passphrase must not change
+  assert:
+    that: not borgbackup_passphrase_check.changed
+    fail_msg: >-
+      ~{{ borgbackup_client_user }}/.borg.passphrase on {{ inventory_hostname }}
+      holds a different passphrase than borgbackup_passphrase. Writing it
+      would lock this client out of its existing repository.
+    quiet: true
+  when: borgbackup_existing_passphrase.stat.exists
+
+- name: existing | read this client's key line on each backup server
+  shell: "grep -F -- {{ sshkey.stdout.split()[1] | quote }} ~{{ item.user }}/.ssh/authorized_keys || true"
+  delegate_to: "{{ item.fqdn }}"
+  loop: "{{ borgbackup_servers }}"
+  when: item.type == 'normal'
+  register: borgbackup_existing_keylines
+  changed_when: false
+  check_mode: false
+
+- name: existing | key line must keep its repository and append-only flag
+  assert:
+    that:
+      - _cd == _want.path | regex_replace('/{2,}', '/')
+      - _is_management or _restrict == _want.restrict | regex_replace('/{2,}', '/')
+      - _is_management or _appendonly == (borgbackup_appendonly | bool)
+    fail_msg: >-
+      {{ item.item.fqdn }} already authorizes this client's key as:
+      {{ item.stdout }} -- the role would write cd {{ _want.path }}
+      {%- if not _is_management %}, --restrict-to-path {{ _want.restrict }},
+      append-only {{ borgbackup_appendonly | bool }}{% endif %}.
+      Set borgbackup_repository_paths and/or borgbackup_appendonly to
+      match what is deployed.
+    quiet: true
+  loop: "{{ borgbackup_existing_keylines.results }}"
+  loop_control:
+    label: "{{ item.item.fqdn }}"
+  when: item.stdout is defined and item.stdout | length > 0
+  vars:
+    _want: "{{ borgbackup_repositories[item.item.fqdn] }}"
+    _is_management: "{{ inventory_hostname == borgbackup_management_station }}"
+    _cd: "{{ ((item.stdout | regex_search('cd ([^;]+);', '\\1')) or [''])[0] | regex_replace('/{2,}', '/') }}"
+    _restrict: "{{ ((item.stdout | regex_search('--restrict-to-path ([^\"]+)\"', '\\1')) or [''])[0] | regex_replace('/{2,}', '/') }}"
+    _appendonly: "{{ '--append-only' in item.stdout }}"

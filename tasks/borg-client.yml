@@ -12,6 +12,9 @@
   register: sshkey
   changed_when: false
 
+- include_tasks: check-existing.yml
+  when: borgbackup_check_existing | bool
+
 - name: client | write passphrase
   lineinfile:
     dest: "~{{ borgbackup_client_user }}/.borg.passphrase"
@@ -37,7 +40,7 @@
   authorized_key:
     user: "{{ item.user }}"
     key: "{{ sshkey.stdout }}"
-    key_options: 'command="cd {{ item.home }}{{ item.pool }}/{{ inventory_hostname }};borg serve {% if borgbackup_appendonly %}--append-only {% endif %}--restrict-to-path {{ item.home }}/{{ item.pool }}/{{ inventory_hostname }}",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc'
+    key_options: 'command="cd {{ borgbackup_repositories[item.fqdn].path }};borg serve {% if borgbackup_appendonly %}--append-only {% endif %}--restrict-to-path {{ borgbackup_repositories[item.fqdn].restrict }}",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc'
   delegate_to: "{{ item.fqdn }}"
   when: inventory_hostname != borgbackup_management_station
   with_items: "{{ borgbackup_servers }}"
@@ -46,7 +49,7 @@
   authorized_key:
     user: "{{ item.user }}"
     key: "{{ sshkey.stdout }}"
-    key_options: 'command="cd {{ item.home }}{{ item.pool }}/{{ inventory_hostname }};borg serve ",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc'
+    key_options: 'command="cd {{ borgbackup_repositories[item.fqdn].path }};borg serve ",no-port-forwarding,no-X11-forwarding,no-pty,no-agent-forwarding,no-user-rc'
   delegate_to: "{{ item.fqdn }}"
   when: inventory_hostname == borgbackup_management_station
   with_items: "{{ borgbackup_servers }}"

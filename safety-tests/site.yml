@@ -1,0 +1,13 @@
+- hosts: all
+  roles:
+    - albancrommer.borgbackup
+- hosts: client1
+  gather_facts: false
+  vars_files:
+    - /roles/albancrommer.borgbackup/defaults/main.yml
+  tasks:
+    - name: render the management station's prune script for this client
+      template:
+        src: /roles/albancrommer.borgbackup/templates/prune.host.sh.j2
+        dest: /tmp/prune-{{ item }}
+      loop: [client1]

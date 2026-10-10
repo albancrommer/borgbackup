@@ -1,0 +1,11 @@
+all:
+  vars:
+    ansible_connection: local
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    borgbackup:
+      hosts:
+        client1: {}
+    borgbackup_servers:
+      hosts:
+        backupsrv: {}

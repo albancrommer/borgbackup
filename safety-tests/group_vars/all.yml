@@ -1,0 +1,10 @@
+borgbackup_servers:
+  - fqdn: backupsrv
+    user: borgbackup
+    home: /backup/
+    pool: repos
+    type: normal
+    options: ""
+borgbackup_passphrase: "s3cret"
+borgbackup_appendonly: true
+borgbackup_management_copy_keys: false

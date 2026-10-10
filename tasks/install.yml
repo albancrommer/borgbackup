@@ -1,5 +1,12 @@
 ---
+- name: check for an existing borg binary
+  stat:
+    path: "/usr/local/bin/borg"
+  register: borgbackup_binary
+  tags: borginstall
+
 - name: install borg backup
+  when: not borgbackup_binary.stat.exists or borgbackup_force_install | bool
   get_url:
     dest: "/usr/local/bin/borg"
     checksum: "{{ borgbackup_checksum }}"

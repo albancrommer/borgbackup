@@ -15,11 +15,7 @@ if [ "$1" = "info" ]
   then
     if [ -z "$2" ]; then printf "run $0 with list and use the backup-tag to request information\n"; exit 1; fi
 {% for b in borgbackup_servers %}
-{% if b.port %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% else %}
-    REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% endif %}
+    REPOSITORY={{ borgbackup_repositories[b.fqdn].url }}
     /usr/local/bin/borg info {{ b.options }} $REPOSITORY::$2
 {% endfor %}
     exit 0
@@ -31,11 +27,7 @@ if [ "$1" = "mount" ]
     if [ -z "$3" ]; then printf "Select the backup to mount\n"; exit 1; fi
     if [ -z "$4" ]; then printf "Select the path to mount the backup on\n"; exit 1; fi
 {% for b in borgbackup_servers %}
-{% if b.port %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% else %}
-    REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% endif %}
+    REPOSITORY={{ borgbackup_repositories[b.fqdn].url }}
     /usr/local/bin/borg mount {{ b.options }} $REPOSITORY::$3 $4
     if [ "$?" = "0" ]; then printf "Backup mounted on $4, do not forget to unmount!\n"; fi
     exit 0
@@ -45,11 +37,7 @@ fi
 if [ "$1" = "list" ]
   then
 {% for b in borgbackup_servers %}
-{% if b.port %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% else %}
-    REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% endif %}
+    REPOSITORY={{ borgbackup_repositories[b.fqdn].url }}
     printf "Archives on {{ b.fqdn }} :\n"
     /usr/local/bin/borg list {{ b.options }} -v $REPOSITORY
 {% endfor %}
@@ -59,11 +47,7 @@ fi
 if [ "$1" = "init" ]
   then
 {% for b in borgbackup_servers %}
-{% if b.port %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% else %}
-    REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% endif %}
+    REPOSITORY={{ borgbackup_repositories[b.fqdn].url }}
     /usr/local/bin/borg init --encryption={{ borgbackup_encryption_mode }}{% if borgbackup_appendonly_repoconfig %} --append-only{% endif %} {{ b.options }} $REPOSITORY
 {% endfor %}
     exit 0
@@ -93,11 +77,7 @@ if [ "$1" = "backup" ]
 {% endif %}
 
 {% for b in borgbackup_servers %}
-{% if b.port %}
-    REPOSITORY=ssh://{{ b.user }}@{{ b.fqdn }}:{{ b.port }}/{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% else %}
-    REPOSITORY={{ b.user }}@{{ b.fqdn }}:{{ b.home }}{{ b.pool }}/{{ inventory_hostname }}
-{% endif %}
+    REPOSITORY={{ borgbackup_repositories[b.fqdn].url }}
     
     log "## Backing up to {{ b.fqdn }} "
     /usr/local/bin/borg create {{ rate_limit }} -x --compression {{ borgbackup_compression }} --stats {{ b.options }} $REPOSITORY::$date {% for dir in borgbackup_include %}{{ dir }} {% endfor %} {% for dir in borgbackup_exclude %} --exclude '{{ dir }}'{% endfor %} &>> $LOG_FILE
