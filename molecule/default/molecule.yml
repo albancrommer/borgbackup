@@ -1,0 +1,47 @@
+---
+# Two Debian 13 containers on their own network: a backup server (sshd,
+# set up by the role itself) and a client that really backs up to it
+# over ssh with borg, then restores the data in verify.yml.
+# Run from the role root: `molecule test` (needs Docker).
+dependency:
+  name: galaxy
+  options:
+    requirements-file: molecule/default/requirements.yml
+driver:
+  name: docker
+platforms:
+  # The server's container name, inventory name and fqdn are all
+  # `backupsrv`: the role delegates to `item.fqdn`, and the client
+  # reaches it by that name over ssh.
+  - name: backupsrv
+    image: debian:13
+    pre_build_image: false
+    networks:
+      - name: borgbackup-molecule
+    groups: [borgbackup_servers]
+  - name: client1
+    image: debian:13
+    pre_build_image: false
+    networks:
+      - name: borgbackup-molecule
+    groups: [borgbackup]
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        borgbackup_servers:
+          - fqdn: backupsrv
+            user: borgbackup
+            home: /var/backup/
+            pool: repos
+            type: normal
+            options: ""
+        borgbackup_passphrase: molecule-test-passphrase
+        borgbackup_appendonly: true
+        # A fresh server: let the role create the account and pool.
+        borgbackup_manage_server: true
+        borgbackup_include: [/srv/molecule-data]
+        borgbackup_management_copy_keys: false
+verifier:
+  name: ansible

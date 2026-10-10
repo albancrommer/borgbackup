@@ -1,0 +1,42 @@
+---
+# Molecule's generated image removes /var/lib/apt/lists itself, which
+# apt needs for its lock file.
+- name: Restore apt's lists directory
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Recreate /var/lib/apt/lists/partial
+      ansible.builtin.file:
+        path: /var/lib/apt/lists/partial
+        state: directory
+        mode: "0700"
+
+- name: Prepare the backup server
+  hosts: borgbackup_servers
+  gather_facts: false
+  tasks:
+    - name: Install sshd
+      ansible.builtin.apt:
+        name: openssh-server
+        update_cache: true
+
+    # No systemd in the container: run sshd directly.
+    - name: Start sshd
+      ansible.builtin.shell: mkdir -p /run/sshd && (pgrep -x sshd || /usr/sbin/sshd)
+      changed_when: false
+
+- name: Prepare the client
+  hosts: borgbackup
+  gather_facts: false
+  tasks:
+    - name: Install client packages
+      ansible.builtin.apt:
+        name: [openssh-client, cron]
+        update_cache: true
+
+    - name: Data to back up
+      ansible.builtin.shell: >
+        mkdir -p /srv/molecule-data &&
+        head -c 1048576 /dev/urandom > /srv/molecule-data/sample.bin
+      args:
+        creates: /srv/molecule-data/sample.bin

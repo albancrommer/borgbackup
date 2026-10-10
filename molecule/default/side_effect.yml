@@ -1,0 +1,8 @@
+---
+- name: Back up for real
+  hosts: borgbackup
+  gather_facts: false
+  tasks:
+    - name: Run the wrapper script's backup
+      ansible.builtin.command: /usr/local/bin/borg-backup backup
+      changed_when: true

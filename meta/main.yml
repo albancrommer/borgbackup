@@ -1,19 +1,17 @@
 ---
 galaxy_info:
+  namespace: albancrommer
+  role_name: borgbackup
   author: Luc Stroobant and Dieter Verhelst
   description: Install Borg backup server and client (with rsync.net server support)
   license: MIT
-  min_ansible_version: 1.9
+  # Tested in CI with ansible-core 2.19 (Debian 13's); safety-tests/
+  # also passed on 2.14 (Debian 12's).
+  min_ansible_version: "2.14"
   platforms:
-    - name: EL
-      versions:
-        - all
     - name: Debian
       versions:
-        - all
-    - name: Ubuntu
-      versions:
-        - all
+        - trixie
   galaxy_tags:
     - borg
     - borgbackup

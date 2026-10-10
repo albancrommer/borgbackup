@@ -1,3 +1,4 @@
+---
 borgbackup_servers:
   - fqdn: backupsrv
     user: borgbackup

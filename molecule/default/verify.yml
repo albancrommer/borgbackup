@@ -1,0 +1,52 @@
+---
+- name: Verify the client
+  hosts: borgbackup
+  gather_facts: false
+  vars:
+    repo: borgbackup@backupsrv:/var/backup/repos/client1
+  tasks:
+    - name: Backup was logged as successful
+      ansible.builtin.command: grep -q "Backup succeeded" /var/log/borg-backup.log
+      changed_when: false
+
+    - name: Wrapper script points at the expected repository
+      ansible.builtin.command: grep -qx "    REPOSITORY={{ repo }}" /usr/local/bin/borg-backup
+      changed_when: false
+
+    - name: Restore the latest archive and compare with the original
+      ansible.builtin.shell: |
+        set -eu
+        . /root/.borg.passphrase
+        last=$(/usr/local/bin/borg list --short --last 1 {{ repo }})
+        rm -rf /tmp/restore && mkdir /tmp/restore && cd /tmp/restore
+        /usr/local/bin/borg extract "{{ repo }}::$last" srv/molecule-data
+        cmp /srv/molecule-data/sample.bin /tmp/restore/srv/molecule-data/sample.bin
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: The client's key is confined to its own repository
+      ansible.builtin.shell: |
+        . /root/.borg.passphrase
+        /usr/local/bin/borg list borgbackup@backupsrv:/var/backup/repos/someone-else
+      args:
+        executable: /bin/bash
+      register: escape
+      changed_when: false
+      failed_when: escape.rc == 0
+
+- name: Verify the server
+  hosts: borgbackup_servers
+  gather_facts: false
+  tasks:
+    - name: Read authorized_keys
+      ansible.builtin.slurp:
+        src: /var/backup/.ssh/authorized_keys
+      register: authorized_keys
+
+    - name: Client key line is append-only and restricted to its repository
+      ansible.builtin.assert:
+        that: >-
+          'command="cd /var/backup/repos/client1;borg serve --append-only
+          --restrict-to-path /var/backup//repos/client1",no-port-forwarding'
+          in (authorized_keys.content | b64decode)
