@@ -116,6 +116,34 @@ ansible-playbook -i inventory/test backup.yml -l backup1.fiaas.co
 ansible-playbook -i inventory/test backup.yml -l client1.fiaas.co
 ```
 
+## Development and releases
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`fix: ...`, `feat: ...`, `chore: ...`): on every push to `master`,
+CI picks the next version from them with
+[git-cliff](https://git-cliff.org/) (`fix` → patch, `feat` → minor,
+`!`/`BREAKING CHANGE` → major), updates `CHANGELOG.md`, tags `vX.Y.Z`,
+and attaches the role tarball to a GitHub Release. `chore`, `docs`,
+`ci`, `test`... don't trigger a release.
+
+Nothing is released unless the tests pass (`.github/workflows/release.yml`):
+
+```sh
+pip install -r molecule/requirements.txt
+yamllint .
+molecule test             # Debian 13 client + backup server: real backup, restore, key confinement
+./safety-tests/run.sh     # existing-deployment protections (see above)
+```
+
+Both need Docker. To install a release, pin its tag:
+
+```yaml
+- name: albancrommer.borgbackup
+  src: https://github.com/albancrommer/borgbackup
+  scm: git
+  version: vX.Y.Z
+```
+
 ## Further reading
 * [Borg documentation](https://borgbackup.readthedocs.io/en/stable/)
 * [Append only mode information](http://borgbackup.readthedocs.io/en/stable/usage/notes.html#append-only-mode)

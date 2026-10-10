@@ -1,0 +1,131 @@
+name: release
+
+# One workflow, three jobs: test on every push and pull request; on a
+# push to master, release (git-cliff picks the next semver from the
+# conventional commits, writes CHANGELOG.md, tags) and publish (role
+# tarball attached to a GitHub Release). Publish is a job here rather
+# than a workflow on tag push because tags pushed with GITHUB_TOKEN
+# don't trigger other workflows.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: install test tools
+        run: |
+          set -eux
+          pip install -r molecule/requirements.txt
+
+      - name: yamllint
+        run: yamllint .
+
+      - name: molecule (Debian 13 client + backup server, real backup and restore)
+        env:
+          PY_COLORS: "1"
+          ANSIBLE_FORCE_COLOR: "1"
+        run: molecule test
+
+      - name: existing-deployment safety tests
+        run: ./safety-tests/run.sh
+
+  release:
+    needs: test
+    if: ${{ github.event_name == 'push' && !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.bump.outputs.should_release }}
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: install git-cliff
+        run: |
+          set -eux
+          curl -sL https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-unknown-linux-gnu.tar.gz \
+            | sudo tar xz --strip-components=1 -C /usr/local/bin git-cliff-2.14.2/git-cliff
+          git-cliff --version
+
+      - name: determine next version
+        id: bump
+        run: |
+          set -eu
+          CURRENT="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)"
+          NEXT="$(git-cliff --bumped-version)"
+          echo "current=$CURRENT next=$NEXT"
+          if [ "$NEXT" = "$CURRENT" ]; then
+            echo "No releasable commits since $CURRENT -- skipping release."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+          echo "tag=${NEXT}" >> "$GITHUB_OUTPUT"
+
+      - name: generate changelog and tag
+        if: steps.bump.outputs.should_release == 'true'
+        run: |
+          set -eux
+          git-cliff --bump -o CHANGELOG.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -m "chore(release): ${{ steps.bump.outputs.tag }}"
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin HEAD:master
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+  publish:
+    needs: release
+    if: needs.release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout the release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+          fetch-depth: 0
+
+      - name: install git-cliff
+        run: |
+          set -eux
+          curl -sL https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-unknown-linux-gnu.tar.gz \
+            | sudo tar xz --strip-components=1 -C /usr/local/bin git-cliff-2.14.2/git-cliff
+
+      - name: build role tarball
+        run: |
+          set -eux
+          TAG="${{ needs.release.outputs.tag }}"
+          VERSION="${TAG#v}"
+          git archive --format=tar.gz --prefix="borgbackup-${VERSION}/" \
+            -o "borgbackup-${VERSION}.tar.gz" "$TAG" \
+            ':!.github' ':!molecule' ':!safety-tests' ':!cliff.toml'
+          tar tzf "borgbackup-${VERSION}.tar.gz" | grep -q "^borgbackup-${VERSION}/meta/main.yml$"
+
+      - name: create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eux
+          TAG="${{ needs.release.outputs.tag }}"
+          git-cliff --latest --strip header > release-notes.md
+          gh release create "$TAG" "borgbackup-${TAG#v}.tar.gz" \
+            --title "$TAG" --notes-file release-notes.md
