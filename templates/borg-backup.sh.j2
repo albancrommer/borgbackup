@@ -62,6 +62,8 @@ if [ "$1" = "backup" ]
     log(){ echo -e "\n$(date '+%Y-%m-%d %H:%M:%S') $@" | tee -a "$LOG_FILE"; }
     _term(){ echo -e "\n## END ##" | tee -a "$LOG_FILE"; exit 1; }
     trap _term SIGINT SIGTERM
+    # Exit status of the whole run: 1 if any `borg create` failed.
+    status=0
 
 # Running some commands pre-backup
 (
@@ -82,7 +84,7 @@ if [ "$1" = "backup" ]
     log "## Backing up to {{ b.fqdn }} "
     /usr/local/bin/borg create {{ rate_limit }} -x --compression {{ borgbackup_compression }} --stats {{ b.options }} $REPOSITORY::$date {% for dir in borgbackup_include %}{{ dir }} {% endfor %} {% for dir in borgbackup_exclude %} --exclude '{{ dir }}'{% endfor %} &>> $LOG_FILE
 
-    if [ "$?" -eq "0" ]; then printf "Backup succeeded on $date to {{ b.fqdn }}\n" >> /var/log/borg-backup.log; fi
+    if [ "$?" -eq "0" ]; then printf "Backup succeeded on $date to {{ b.fqdn }}\n" >> /var/log/borg-backup.log; else status=1; fi
 
     log "## Checking the archive integrity "
     /usr/local/bin/borg check $REPOSITORY::$date -v &>> "$LOG_FILE"
@@ -105,6 +107,7 @@ if [ "$1" = "backup" ]
     ) &>> "$LOG_FILE"
 {% endif %}
 
-    _term
+    echo -e "\n## END ##" | tee -a "$LOG_FILE"
+    exit $status
 fi
 
