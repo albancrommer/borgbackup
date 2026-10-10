@@ -23,7 +23,7 @@
     group: "{{ borgbackup_management_user }}"
     mode: 0700
 
-- name: management | put each host prune script 
+- name: management | put each host prune script
   template:
     src: prune.host.sh.j2
     dest: "~{{ borgbackup_management_user }}/prune.d/{{item}}"
@@ -31,9 +31,8 @@
     group: "{{ borgbackup_management_user }}"
     mode: 0770
   delegate_to: "secure"
-  when:  item != borgbackup_management_station and item not in groups['borgbackup_servers']
+  when: item != borgbackup_management_station and item not in groups['borgbackup_servers']
   with_items: "{{ play_hosts }}"
-
 
 
 - name: management | put management sshpubkey on the normal backupserver

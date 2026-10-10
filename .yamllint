@@ -1,10 +1,8 @@
+---
 extends: default
 
 ignore: |
-  *test_client.yml
-  *test_client_restore.yml
-  *test_server.yml
-  *test_mgt.yml
+  .github/
 
 rules:
   line-length:

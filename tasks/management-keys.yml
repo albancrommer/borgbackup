@@ -1,7 +1,7 @@
 ---
 
 - name: management | get key file
-  fetch: 
+  fetch:
        src: ~{{ borgbackup_client_user}}/.config/borg/keys/{{ borgbackup_management_key_name }}{{ inventory_hostname | regex_replace('\.','_')}}
        dest: /tmp/.borgbackup_key_{{ inventory_hostname }}
        flat: yes
@@ -13,11 +13,8 @@
   become: false
   changed_when: false
 
-- name: management | clean local copy 
+- name: management | clean local copy
   raw: rm -f /tmp/.borgbackup_key_{{ inventory_hostname }}
   delegate_to: localhost
   become: false
   changed_when: false
-
-
- 
