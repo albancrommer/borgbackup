@@ -4,7 +4,7 @@
   fetch:
        src: ~{{ borgbackup_client_user}}/.config/borg/keys/{{ borgbackup_management_key_name }}{{ inventory_hostname | regex_replace('\.','_')}}
        dest: /tmp/.borgbackup_key_{{ inventory_hostname }}
-       flat: yes
+       flat: true
   changed_when: false
 
 - name: management | upload key to management

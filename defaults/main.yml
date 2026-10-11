@@ -60,7 +60,7 @@ borgbackup_management_copy_keys: true
 borgbackup_management_key_name: 'backupserver_example_com__repo_dir_'
 
 
-borgbackup_remote_ratelimit: 6250 # in KiB/s so 6250 <-> 50Mb/s
+borgbackup_remote_ratelimit: 6250  # in KiB/s so 6250 <-> 50Mb/s
 borgbackup_owner: root
 borgbackup_group: root
 borgbackup_shell: "/bin/bash"
